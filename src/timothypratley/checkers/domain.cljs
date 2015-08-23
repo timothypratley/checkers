@@ -47,8 +47,8 @@
 
 (defn new-board []
   (let [champions (shuffle all-champions)]
-    (vec (for [y (range 8)]
-           (vec (for [x (range 8)]
+    (vec (for [x (range 8)]
+           (vec (for [y (range 8)]
                   (when (odd? (+ x y))
                     (let [[name champion] (nth champions (to-idx x y))]
                       (cond
@@ -79,7 +79,7 @@
 
 (defn mid [[fx fy] [tx ty]]
   [(/ (+ fx tx) 2)
-   (/ (+ fy fy) 2)])
+   (/ (+ fy ty) 2)])
 
 (def other
   {:red :black
@@ -100,54 +100,101 @@
 
 (defn forward? [color [fx fy] [tx ty]]
   (if (= :red color)
-    (< ty fy)
-    (> ty fy)))
+    (> ty fy)
+    (< ty fy)))
 
-(defn king? [board a]
-  (:king (get-in board a)))
-
-(defn valid-move? [board color a b]
-  (and (blank? board b)
-       (= color (:color (get-in board a)))
-       (or (jump? board color a b)
-           (neighbor? a b))
-       (or (king? board a)
-           (forward? color a b))))
-
-(defn delete
-  [x k]
-  (if (vector? x)
-    (vec (concat (subvec x 0 k) (subvec x (inc k))))
-    (dissoc x)))
-
-(defn dissoc-in [m path]
-  (update-in m (butlast path) delete (last path)))
+(defn clear-square [m path]
+  (update-in m (butlast path) assoc (last path) nil))
 
 (def inc-or-1 (fnil inc 0))
 
 (defn move [game a b]
-  (println "MOVE" game a b)
   (let [pa (cons :board a)
         pb (cons :board b)
-        peice (get-in game pa)
-        _ (println "P" peice)
-        new-peice (update peice :moves inc-or-1)]
+        champion (get-in game pa)
+        new-champion (update champion :moves inc-or-1)]
     (-> game
-        (update :moves conj [:move a b new-peice (rand-nth movement)])
-        (dissoc-in pa)
-        (assoc-in pb new-peice))))
+        (update :moves conj [:move a b (:name champion) (rand-nth movement)])
+        (clear-square pa)
+        (assoc-in pb new-champion))))
 
 (defn jump [game a b]
   (let [pa (cons :board a)
         pb (cons :board b)
-        peice (get-in game pa)
-        new-peice (update peice :jumps inc-or-1)
+        champion (get-in game pa)
+        new-champion (update champion :jumps inc-or-1)
         m (mid a b)
-        pm (cons :board m)
-        taken (get-in game pm)]
+        pm (cons :board m)]
     (-> game
-        (update :moves conj [:jump a b (:name peice) (rand-nth attack)])
-        (dissoc-in pa)
-        (dissoc-in pm)
-        (update :taken conj taken)
-        (assoc-in pb new-peice))))
+        (update :moves conj [:jump a b (:name champion) (rand-nth attack)])
+        (clear-square pa)
+        (update :taken conj (get-in game pm))
+        (clear-square pm)
+        (assoc-in pb new-champion))))
+
+(defn on-board [[x y]]
+  (and (<= 0 x 7)
+       (<= 0 y 7)))
+
+(defn valid-move? [board color a b]
+  (and (on-board a)
+       (on-board b)
+       (blank? board b)
+       (= color (:color (get-in board a)))
+       (or (jump? board color a b)
+           (neighbor? a b))
+       (or (:king? (get-in board a))
+           (forward? color a b))
+       [(if (neighbor? a b) :move :jump) a b]))
+
+(defn valid-moves [board turn x y dist]
+  (for [dx [(- dist) dist]
+        dy [(- dist) dist]
+        :let [mx (+ x dx)
+              my (+ y dy)
+              m (valid-move? board turn [x y] [mx my])]
+        :when m]
+    m))
+
+(defn all-valid-moves [{:keys [board turn] :as game}]
+  (for [y (range 8)
+        x (range 8)
+        m (concat (valid-moves board turn x y 1)
+                  (valid-moves board turn x y 2))]
+    m))
+
+(defn game-over? [game]
+  (empty? (all-valid-moves game)))
+
+(defn check-game-over [{:keys [turn] :as game}]
+  (if (game-over? game)
+    (assoc game :winner (other turn))
+    game))
+
+(defn continue? [game action [x y]]
+  (and (= action jump)
+       (seq (valid-moves (:board game) (:turn game) x y 2))))
+
+(defn check-turn-over [{:keys [turn] :as game} action to]
+  (if (continue? game action to)
+    game
+    (-> game
+        (update :turn other)
+        (check-game-over))))
+
+(defn check-promotion [game [x y]]
+  (let [color (get-in game [:board x y :color])]
+    (if (= y (if (= color :black) 0 7))
+      (assoc-in game [:board x y :king?] true)
+      game)))
+
+(def action-to-fn
+  {:jump jump
+   :move move})
+
+(defn apply-move [game [action from to]]
+  (let [action-fn (action-to-fn action)]
+    (-> game
+        (action-fn from to)
+        (check-promotion to)
+        (check-turn-over action to))))

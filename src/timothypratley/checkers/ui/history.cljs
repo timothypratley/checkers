@@ -10,10 +10,10 @@
        [[:dt (name k)]
         [:dd (pr-str v)]])))])
 
-(defn history [app-state]
+(defn history [games]
   [:div]
   [:div
    (into
     [:ul.list-unstyled]
-    (for [g (:games @app-state)]
+    (for [g games]
       [:li [game-summary g]]))])
