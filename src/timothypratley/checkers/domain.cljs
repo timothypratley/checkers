@@ -124,11 +124,12 @@
         champion (get-in game pa)
         new-champion (update champion :jumps inc-or-1)
         m (mid a b)
-        pm (cons :board m)]
+        pm (cons :board m)
+        taken (get-in game pm)]
     (-> game
-        (update :moves conj [:jump a b (:name champion) (rand-nth attack)])
+        (update :moves conj [:jump a b (:name champion) (rand-nth attack) (:name taken)])
         (clear-square pa)
-        (update :taken conj (get-in game pm))
+        (update :taken conj taken)
         (clear-square pm)
         (assoc-in pb new-champion))))
 
@@ -147,7 +148,7 @@
            (forward? color a b))
        [(if (neighbor? a b) :move :jump) a b]))
 
-(defn valid-moves [board turn x y dist]
+(defn valid-moves [board turn [x y] dist]
   (for [dx [(- dist) dist]
         dy [(- dist) dist]
         :let [mx (+ x dx)
@@ -156,12 +157,14 @@
         :when m]
     m))
 
-(defn all-valid-moves [{:keys [board turn] :as game}]
-  (for [y (range 8)
-        x (range 8)
-        m (concat (valid-moves board turn x y 1)
-                  (valid-moves board turn x y 2))]
-    m))
+(defn all-valid-moves [{:keys [board turn continue] :as game}]
+  (if continue
+    (valid-moves board turn continue 2)
+    (for [y (range 8)
+          x (range 8)
+          m (concat (valid-moves board turn [x y] 1)
+                    (valid-moves board turn [x y] 2))]
+      m)))
 
 (defn game-over? [game]
   (empty? (all-valid-moves game)))
@@ -171,20 +174,24 @@
     (assoc game :winner (other turn))
     game))
 
-(defn continue? [game action [x y]]
-  (and (= action jump)
-       (seq (valid-moves (:board game) (:turn game) x y 2))))
+(defn continue? [{:keys [turn board]} action [x y]]
+  (and (= action :jump)
+       (seq (valid-moves board turn [x y] 2))))
 
 (defn check-turn-over [{:keys [turn] :as game} action to]
   (if (continue? game action to)
-    game
+    (assoc game :continue to)
     (-> game
+        (dissoc :continue)
         (update :turn other)
         (check-game-over))))
 
+(defn promotion-y [color y]
+  (= y (if (= color :black) 0 7)))
+
 (defn check-promotion [game [x y]]
   (let [color (get-in game [:board x y :color])]
-    (if (= y (if (= color :black) 0 7))
+    (if (promotion-y color y)
       (assoc-in game [:board x y :king?] true)
       game)))
 
