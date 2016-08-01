@@ -16,7 +16,7 @@
      (when (= :black (store/get-current-game :winner))
        [:audio {:controls "true"
                 :auto-play "true"}
-        [:source {:src "http://download1363.mediafire.com/ks1f8721queg/c44g2atgst76u3q/Epic+sax+Guy.mp3"
+        [:source {:src "http://download1792.mediafire.com/lmy78nj783cg/c44g2atgst76u3q/Epic+sax+Guy.mp3"
                   :type "audio/mpeg"}]
         "Your browser does not support the audio element."])
      (when (seq (store/get-current-game :taken))
