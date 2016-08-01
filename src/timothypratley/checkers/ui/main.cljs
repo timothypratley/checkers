@@ -2,8 +2,7 @@
   (:require
    [timothypratley.checkers.store :as store]
    [timothypratley.checkers.ui.board :refer [board]]
-   [timothypratley.checkers.ui.controls :refer [controls]]
-   [timothypratley.checkers.ui.history :refer [history]]))
+   [timothypratley.checkers.ui.controls :refer [controls]]))
 
 (defn main []
   [:div
@@ -29,5 +28,4 @@
            [:p {:style {:color (name (:color champion))}}
             (pr-str (dissoc champion :icon :color))]))])]
     [:div.col-xs-4
-     [controls]
-     [history]]]])
+     [controls]]]])
